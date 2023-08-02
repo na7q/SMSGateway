@@ -53,7 +53,7 @@ def send_sms(twilio_phone_number, to_phone_number, from_callsign, body_message):
 
 def format_aprs_packet(callsign, message):
     sender_length = len(callsign)
-    spaces_after_sender = ' ' * max(1, 9 - sender_length)
+    spaces_after_sender = ' ' * max(0, 9 - sender_length)
     aprs_packet_format = '{}>NA7Q::{}{}:{}\r\n'.format(APRS_CALLSIGN, callsign, spaces_after_sender, message)
     return aprs_packet_format
 
