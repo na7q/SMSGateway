@@ -39,6 +39,15 @@ def send_ack_message(sender, message_id):
     print("Sent ACK to {}: {}".format(sender, ack_message))
     print("Outgoing ACK packet: {}".format(ack_packet.decode()))
 
+def send_rej_message(sender, message_id):
+    rej_message = 'rej{}'.format(message_id)
+    sender_length = len(sender)
+    spaces_after_sender = ' ' * max(0, 9 - sender_length)
+    rej_packet_format = '{}>APRS::{}{}:{}\r\n'.format(APRS_CALLSIGN, sender, spaces_after_sender, rej_message)
+    rej_packet = rej_packet_format.encode()
+    aprs_socket.sendall(rej_packet)
+    print("Sent REJ to {}: {}".format(sender, rej_message))
+    print("Outgoing REJ packet: {}".format(rej_packet.decode()))
 
 def send_sms(twilio_phone_number, to_phone_number, from_callsign, body_message):
     # Initialize the Twilio client
@@ -170,8 +179,8 @@ def receive_aprs_messages():
                             callsign_pattern = re.compile(r'^({})(-\d+)?$'.format('|'.join(map(re.escape, allowed_callsigns))))
                             if not callsign_pattern.match(from_callsign):
                                 print("Unauthorized sender:", from_callsign)
-                                send_ack_message(from_callsign, message_id)  # Send ACK for unauthorized sender
-                                continue  # Skip processing messages from unauthorized senders                        
+                                send_rej_message(from_callsign, message_id)
+                                continue  # Skip processing messages from unauthorized senders
 
                         # Display verbose message content
                         print("From: {}".format(from_callsign))
