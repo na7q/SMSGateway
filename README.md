@@ -11,6 +11,8 @@ SMS to APRS Message Retries<br>
 Duplicate Message Checking, APRS or SMS
 SMS to APRS without Explicit Callsign<br><br>
 
+Python3.9 is recommended. Will work with older versions.<br><br>
+
 Install Dependencies:<br>
 pip install twilio flask<br><br>
 
