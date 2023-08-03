@@ -5,6 +5,12 @@ from twilio.rest import Client
 
 app = Flask(__name__)
 
+# Set this variable to enable/disable private mode
+private_mode = False  # Change this value as needed
+
+# List of callsigns allowed to send messages if private_mode is TRUE. Accepts ALL SSIDs for a CALLSIGN listed.
+allowed_callsigns = ['CALLSIGN0', 'CALLSIGN1', 'CALLSIGN2']  # Add more callsigns as needed
+
 # Twilio credentials
 TWILIO_ACCOUNT_SID = 'SID'
 TWILIO_AUTH_TOKEN = 'TOKEN'
@@ -157,6 +163,15 @@ def receive_aprs_messages():
                         
                         # Remove the first 11 characters from the message to exclude the "Callsign :" prefix
                         verbose_message = message_text[11:].split('{')[0].strip()
+
+                        # If private_mode is enabled, check against allowed_callsigns; otherwise, process normally
+                        if private_mode:
+                            # Use regular expression to match main callsign and accept all SSIDs
+                            callsign_pattern = re.compile(r'^({})(-\d+)?$'.format('|'.join(map(re.escape, allowed_callsigns))))
+                            if not callsign_pattern.match(from_callsign):
+                                print("Unauthorized sender:", from_callsign)
+                                send_ack_message(from_callsign, message_id)  # Send ACK for unauthorized sender
+                                continue  # Skip processing messages from unauthorized senders                        
 
                         # Display verbose message content
                         print("From: {}".format(from_callsign))
