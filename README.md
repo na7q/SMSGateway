@@ -9,3 +9,4 @@ Not supported: <br>
 Checking Missed SMS Messages via APRS<br>
 SMS to APRS Message Retries<br>
 Duplicate Message Checking, APRS or SMS
+SMS to APRS without Explicit Callsign
