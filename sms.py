@@ -99,7 +99,7 @@ def receive_sms():
         if len(parts) == 2:
             # Extract the 10-digit phone number from the sender's phone number
             sender_phone_number = from_phone_number[-10:]
-            callsign = parts[0][1:]
+            callsign = parts[0][1:].upper()  # Convert to uppercase
             aprs_message = parts[1]
 
             # Get the last APRS message ID sent to this user
