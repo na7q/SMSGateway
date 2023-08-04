@@ -2,6 +2,7 @@ import socket
 import re
 from flask import Flask, request, jsonify
 from twilio.rest import Client
+import time
 
 app = Flask(__name__)
 
@@ -18,8 +19,8 @@ TWILIO_PHONE_NUMBER = '+NUMBER'  # Your Twilio phone number
 
 # APRS credentials
 APRS_CALLSIGN = 'CALLSIGN'
-APRS_PASSCODE = 'PASSCODE'
-APRS_SERVER = 'roate.aprs2.net'
+APRS_PASSCODE = 'PASS'
+APRS_SERVER = 'rotate.aprs2.net'
 APRS_PORT = 14580
 
 # Initialize the socket
@@ -27,6 +28,12 @@ aprs_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 # Dictionary to store the last received APRS message ID for each user
 user_last_message_id = {}
+
+received_acks = {}
+
+RETRY_INTERVAL = 60  # Adjust this as needed
+
+MAX_RETRIES = 3  # Adjust this as needed
 
 
 def send_ack_message(sender, message_id):
@@ -49,6 +56,7 @@ def send_rej_message(sender, message_id):
     print("Sent REJ to {}: {}".format(sender, rej_message))
     print("Outgoing REJ packet: {}".format(rej_packet.decode()))
 
+
 def send_sms(twilio_phone_number, to_phone_number, from_callsign, body_message):
     # Initialize the Twilio client
     client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
@@ -69,13 +77,13 @@ def send_sms(twilio_phone_number, to_phone_number, from_callsign, body_message):
 def format_aprs_packet(callsign, message):
     sender_length = len(callsign)
     spaces_after_sender = ' ' * max(0, 9 - sender_length)
-    aprs_packet_format = '{}>NA7Q::{}{}:{}\r\n'.format(APRS_CALLSIGN, callsign, spaces_after_sender, message)
+    aprs_packet_format = '{}>APRS::{}{}:{}\r\n'.format(APRS_CALLSIGN, callsign, spaces_after_sender, message)
     return aprs_packet_format
 
 # Dictionary to store the mapping of aliases (callsigns) to phone numbers
 alias_map = {
     'alias1': '1234567890',  # Replace 'alias1' with the desired alias and '1234567890' with the corresponding phone number.
-    'alias2': '0987654321',  # Add more entries as needed for other aliases and phone numbers.
+    'alias2': '9876543210',  # Add more entries as needed for other aliases and phone numbers.
     # Add more entries as needed.
 }
 
@@ -99,7 +107,7 @@ def receive_sms():
         if len(parts) == 2:
             # Extract the 10-digit phone number from the sender's phone number
             sender_phone_number = from_phone_number[-10:]
-            callsign = parts[0][1:].upper()  # Convert to uppercase
+            callsign = parts[0][1:].upper() #Convert to UPPERCASE
             aprs_message = parts[1]
 
             # Get the last APRS message ID sent to this user
@@ -120,8 +128,34 @@ def receive_sms():
             # Format the APRS packet and send it to the APRS server
             aprs_packet = format_aprs_packet(callsign, "@{} {}".format(sender_phone_number, aprs_message + "{" + str(last_message_id)))
             aprs_socket.sendall(aprs_packet.encode())
+            #print(user_last_message_id)
+            #print(last_message_id)
             print("Sent APRS message to {}: {}".format(callsign, aprs_message))
             print("Outgoing APRS packet: {}".format(aprs_packet.strip()))
+            
+            time.sleep(5)  # Sleeping here allows time for incoming ack before retry
+
+            # Retry sending the message if ACK is not received
+            retry_count = 0
+            ack_received = False  # Flag to track whether ACK is received
+
+            while retry_count < MAX_RETRIES and not ack_received:
+                if str(last_message_id) in received_acks.get(callsign, set()):
+                    print("Message ACK received. No further retries needed.")
+                    ack_received = True
+                    # Reset retry count and remove the ACK ID
+                    retry_count = 0
+                    received_acks.get(callsign, set()).discard(str(last_message_id))
+                else:
+                    print("ACK not received. Retrying in {} seconds.".format(RETRY_INTERVAL))
+                    aprs_socket.sendall(aprs_packet.encode())
+                    retry_count += 1
+                    time.sleep(RETRY_INTERVAL)  # Pause for the defined interval
+
+            if ack_received:
+                print("ACK received during retries. No further retries needed.")
+            elif retry_count >= MAX_RETRIES:
+                print("Max retries reached. No ACK received for the message.")
 
             return jsonify({'status': 'success'})
         else:
@@ -136,7 +170,7 @@ def receive_aprs_messages():
     print("Connected to APRS server with callsign: {}".format(APRS_CALLSIGN))
 
     # Send login information with APRS callsign and passcode
-    login_str = 'user {} pass {} vers SMS-Gateway 0.1b\r\n'.format(APRS_CALLSIGN, APRS_PASSCODE)
+    login_str = 'user {} pass {} vers SMS-Gateway 0.2b\r\n'.format(APRS_CALLSIGN, APRS_PASSCODE)
     aprs_socket.sendall(login_str.encode())
     print("Sent login information.")
 
@@ -165,6 +199,14 @@ def receive_aprs_messages():
                 if len(parts) >= 2:
                     from_callsign = parts[0].split('>')[0].strip()
                     message_text = ':'.join(parts[1:]).strip()
+                    
+                    # Extract and process ACK ID if present
+                    if "ack" in message_text:
+                        parts = message_text.split("ack", 1)
+                        if len(parts) == 2 and parts[1].isdigit():
+                            ack_id = parts[1]
+                            process_ack_id(from_callsign, ack_id)
+                    # End RXd ACK ID for MSG Retries
 
                     # Check if the message contains "{"
                     if "{" in message_text:
@@ -173,7 +215,7 @@ def receive_aprs_messages():
                         # Remove the first 11 characters from the message to exclude the "Callsign :" prefix
                         verbose_message = message_text[11:].split('{')[0].strip()
 
-                        # If private_mode is enabled, check against allowed_callsigns; otherwise, process normally
+                        # Inside the receive_aprs_messages function
                         if private_mode:
                             # Use regular expression to match main callsign and accept all SSIDs
                             callsign_pattern = re.compile(r'^({})(-\d+)?$'.format('|'.join(map(re.escape, allowed_callsigns))))
@@ -186,6 +228,8 @@ def receive_aprs_messages():
                         print("From: {}".format(from_callsign))
                         print("Message: {}".format(verbose_message))
                         print("Message ID: {}".format(message_id))
+                        print(user_last_message_id)
+
 
                         # Check if the verbose message contains the desired format with a number or an alias
                         pattern = r'@(\d{10}|\w+) (.+)'
@@ -215,9 +259,15 @@ def receive_aprs_messages():
 
                                 # Send SMS
                                 send_sms(TWILIO_PHONE_NUMBER, phone_number, from_callsign, aprs_message)
-
+                                
                             else:
-                                print("Recipient not found in alias map or not a 10-digit number: {}".format(recipient))
+                                print("Recipient not found in alias map or not a 10-digit number: {}".format(recipient))                                
+
+                            # Extract and process ACK ID if present
+                            if message_text.startswith("ack"):
+                                ack_id = message_text[3:]  # Remove the "ack" prefix
+                                process_ack_id(from_callsign, ack_id)
+
 
                             pass
                                                         # Send ACK
@@ -231,8 +281,10 @@ def receive_aprs_messages():
         # Close the socket connection when done
         aprs_socket.close()
 
-
-
+#Implementation for ack check with Message Retries #TODO
+def process_ack_id(from_callsign, ack_id):
+    print("Received ACK from {}: {}".format(from_callsign, ack_id))
+    received_acks.setdefault(from_callsign, set()).add(ack_id)
 
 if __name__ == '__main__':
     print("APRS bot is running. Waiting for APRS messages...")
