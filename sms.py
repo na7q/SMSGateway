@@ -31,7 +31,7 @@ user_last_message_id = {}
 
 received_acks = {}
 
-RETRY_INTERVAL = 60  # Adjust this as needed
+RETRY_INTERVAL = 90  # Adjust this as needed
 
 MAX_RETRIES = 3  # Adjust this as needed
 
