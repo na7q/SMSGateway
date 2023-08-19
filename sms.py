@@ -85,13 +85,13 @@ def send_sms(twilio_phone_number, to_phone_number, from_callsign, body_message):
 
 def format_aprs_packet(callsign, message):
     sender_length = len(callsign)
-    spaces_after_sender = ' ' * max(1, 9 - sender_length)
+    spaces_after_sender = ' ' * max(0, 9 - sender_length)
     aprs_packet_format = '{}>APRS::{}{}:{}\r\n'.format(APRS_CALLSIGN, callsign, spaces_after_sender, message)
     return aprs_packet_format
 
 # Dictionary to store the mapping of aliases (callsigns) to phone numbers
 alias_map = {
-    'laura': '5032985265',  # Replace 'alias1' with the desired alias and '1234567890' with the corresponding phone number.
+    'alias1': '123456789',  # Replace 'alias1' with the desired alias and '1234567890' with the corresponding phone number.
     'alias2': '9876543210',  # Add more entries as needed for other aliases and phone numbers.
     # Add more entries as needed.
 }
