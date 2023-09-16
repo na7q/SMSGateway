@@ -15,7 +15,6 @@ Terminal Command:<br>
 nohup python3 /root/app/sms.py > /dev/null 2>&1 &<br><br>
 
 Features:<br>
-SMS to APRS Message Retries<br>
 Duplicate Message Checking of APRS Messages<br>
 SMS to APRS retry when APRS user didn't ack message.<br><br>
 
