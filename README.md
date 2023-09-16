@@ -14,10 +14,10 @@ pip install twilio flask<br><br>
 Terminal Command:<br>
 nohup python3 /root/app/sms.py > /dev/null 2>&1 &<br><br>
 
-Features:
+Features:<br>
 SMS to APRS Message Retries<br>
-Duplicate Message Checking of APRS Messages
-SMS to APRS retry when APRS user didn't ack message.
+Duplicate Message Checking of APRS Messages<br>
+SMS to APRS retry when APRS user didn't ack message.<br><br>
 
 Not supported: <br>
 Checking Missed SMS Messages via APRS<br>
