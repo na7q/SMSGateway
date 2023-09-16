@@ -19,9 +19,9 @@ TWILIO_AUTH_TOKEN = 'TOKEN'
 TWILIO_PHONE_NUMBER = '+NUMBER'  # Your Twilio phone number
 
 # APRS credentials
-APRS_CALLSIGN = 'SMS'
-APRS_PASSCODE = '29615'
-APRS_SERVER = 'theconnectdesk.com'
+APRS_CALLSIGN = 'CALL'
+APRS_PASSCODE = 'PASS'
+APRS_SERVER = 'rotate.aprs2.net'
 APRS_PORT = 14580
 
 # Initialize the socket
