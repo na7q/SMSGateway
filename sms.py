@@ -16,7 +16,7 @@ allowed_callsigns = ['CALLSIGN0', 'CALLSIGN1', 'CALLSIGN2']  # Add more callsign
 # Twilio credentials
 TWILIO_ACCOUNT_SID = 'SID'
 TWILIO_AUTH_TOKEN = 'TOKEN'
-TWILIO_PHONE_NUMBER = '+NUMBER'  # Your Twilio phone number
+TWILIO_PHONE_NUMBER = '+NuMBER'  # Your Twilio phone number
 
 # APRS credentials
 APRS_CALLSIGN = 'CALL'
@@ -29,6 +29,9 @@ aprs_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 # Declare socket_ready as a global variable
 socket_ready = False
+
+# Dictionary to store the last number an APRS user messaged (callsign: last_number)
+last_message_number = {}
 
 # Dictionary to store the last received APRS message ID for each user
 user_last_message_id = {}
@@ -48,7 +51,7 @@ def send_ack_message(sender, message_id):
     ack_message = 'ack{}'.format(message_id)
     sender_length = len(sender)
     spaces_after_sender = ' ' * max(0, 9 - sender_length)
-    ack_packet_format = '{}>APRS::{}{}:{}\r\n'.format(APRS_CALLSIGN, sender, spaces_after_sender, ack_message)
+    ack_packet_format = '{}>APOSMS::{}{}:{}\r\n'.format(APRS_CALLSIGN, sender, spaces_after_sender, ack_message)
     ack_packet = ack_packet_format.encode()
     aprs_socket.sendall(ack_packet)
     print("Sent ACK to {}: {}".format(sender, ack_message))
@@ -58,7 +61,7 @@ def send_rej_message(sender, message_id):
     rej_message = 'rej{}'.format(message_id)
     sender_length = len(sender)
     spaces_after_sender = ' ' * max(0, 9 - sender_length)
-    rej_packet_format = '{}>APRS::{}{}:{}\r\n'.format(APRS_CALLSIGN, sender, spaces_after_sender, rej_message)
+    rej_packet_format = '{}>APOSMS::{}{}:{}\r\n'.format(APRS_CALLSIGN, sender, spaces_after_sender, rej_message)
     rej_packet = rej_packet_format.encode()
     aprs_socket.sendall(rej_packet)
     print("Sent REJ to {}: {}".format(sender, rej_message))
@@ -84,13 +87,13 @@ def send_sms(twilio_phone_number, to_phone_number, from_callsign, body_message):
 
 def format_aprs_packet(callsign, message):
     sender_length = len(callsign)
-    spaces_after_sender = ' ' * max(0, 9 - sender_length)
-    aprs_packet_format = '{}>APRS::{}{}:{}\r\n'.format(APRS_CALLSIGN, callsign, spaces_after_sender, message)
+    spaces_after_sender = ' ' * max(0, 9 - sender_length) #1,9 - Changed 9-16
+    aprs_packet_format = '{}>APOSMS::{}{}:{}\r\n'.format(APRS_CALLSIGN, callsign, spaces_after_sender, message)
     return aprs_packet_format
 
 # Dictionary to store the mapping of aliases (callsigns) to phone numbers
 alias_map = {
-    'alias1': '1234567890',  # Replace 'alias1' with the desired alias and '1234567890' with the corresponding phone number.
+    'laura': '5032985265',  # Replace 'alias1' with the desired alias and '1234567890' with the corresponding phone number.
     'alias2': '9876543210',  # Add more entries as needed for other aliases and phone numbers.
     # Add more entries as needed.
 }
@@ -108,20 +111,18 @@ def receive_sms():
     data = request.form
     from_phone_number = data['From']
     body_message = data['Body']
-
-    # If the message is in the correct format, the function extracts the callsign and APRS message content from the SMS body.
+    print (body_message)
+    
     if body_message.startswith('@'):
         parts = body_message.split(' ', 1)
         if len(parts) == 2:
             # Extract the 10-digit phone number from the sender's phone number
             sender_phone_number = from_phone_number[-10:]
-            callsign = parts[0][1:].upper() #Convert to UPPERCASE
+            callsign = parts[0][1:].upper()
             aprs_message = parts[1]
 
             # Get the last APRS message ID sent to this user
             last_message_id = user_last_message_id.get(from_phone_number, 0)
-
-            # Increment the message ID to avoid duplicate messages
             last_message_id += 1
             user_last_message_id[from_phone_number] = last_message_id
 
@@ -129,36 +130,27 @@ def receive_sms():
             alias = reverse_alias_map.get(sender_phone_number.lower())
             if alias:
                 sender_phone_number = alias
-            # If an alias is found, use it; otherwise, use the phone number itself as the alias
-            if alias:
-                sender_phone_number = alias
 
             # Format the APRS packet and send it to the APRS server
             aprs_packet = format_aprs_packet(callsign, "@{} {}".format(sender_phone_number, aprs_message + "{" + str(last_message_id)))
             aprs_socket.sendall(aprs_packet.encode())
-            #print(user_last_message_id)
-            #print(last_message_id)
-            print("Sent APRS message to {}: {}".format(callsign, aprs_message))
-            print("Outgoing APRS packet: {}".format(aprs_packet.strip()))
-            
+
             time.sleep(5)  # Sleeping here allows time for incoming ack before retry
 
-            # Retry sending the message if ACK is not received
             retry_count = 0
-            ack_received = False  # Flag to track whether ACK is received
+            ack_received = False
 
             while retry_count < MAX_RETRIES and not ack_received:
                 if str(last_message_id) in received_acks.get(callsign, set()):
                     print("Message ACK received. No further retries needed.")
                     ack_received = True
-                    # Reset retry count and remove the ACK ID
                     retry_count = 0
                     received_acks.get(callsign, set()).discard(str(last_message_id))
                 else:
                     print("ACK not received. Retrying in {} seconds.".format(RETRY_INTERVAL))
                     aprs_socket.sendall(aprs_packet.encode())
                     retry_count += 1
-                    time.sleep(RETRY_INTERVAL)  # Pause for the defined interval
+                    time.sleep(RETRY_INTERVAL)
 
             if ack_received:
                 print("ACK received during retries. No further retries needed.")
@@ -169,7 +161,62 @@ def receive_sms():
         else:
             return jsonify({'status': 'error', 'message': 'Invalid SMS format'})
     else:
-        return jsonify({'status': 'error', 'message': 'SMS does not start with "@" symbol'})
+    
+        print ("no callsign found")
+        # Message without @callsign prefix
+        callsign = last_message_number.get(from_phone_number[-10:], None)
+        sender_phone_number = from_phone_number[-10:]
+        print("From:", from_phone_number[-10:])
+        print("Dictionary:", last_message_number)
+        print("Callsign Found:", callsign)
+
+        if callsign:
+            # Extract the APRS message content
+            aprs_message = body_message
+
+            # Get the last APRS message ID sent to this user
+            last_message_id = user_last_message_id.get(from_phone_number, 0)
+            last_message_id += 1
+            user_last_message_id[from_phone_number] = last_message_id
+            
+            # Use the reverse alias mapping to check if the sender's phone number has an associated alias
+            alias = reverse_alias_map.get(sender_phone_number.lower())
+            if alias:
+                sender_phone_number = alias
+            print (alias)
+
+            # Format the APRS packet and send it to the APRS server
+            aprs_packet = format_aprs_packet(callsign, "@{} {}".format(sender_phone_number, aprs_message + "{" + str(last_message_id)))
+            aprs_socket.sendall(aprs_packet.encode())
+
+            print("Sent APRS message to {}: {}".format(callsign, aprs_message))
+            print("Outgoing APRS packet: {}".format(aprs_packet.strip()))
+
+            time.sleep(5)  # Sleeping here allows time for incoming ack before retry
+
+            retry_count = 0
+            ack_received = False
+
+            while retry_count < MAX_RETRIES and not ack_received:
+                if str(last_message_id) in received_acks.get(callsign, set()):
+                    print("Message ACK received. No further retries needed.")
+                    ack_received = True
+                    retry_count = 0
+                    received_acks.get(callsign, set()).discard(str(last_message_id))
+                else:
+                    print("ACK not received. Retrying in {} seconds.".format(RETRY_INTERVAL))
+                    aprs_socket.sendall(aprs_packet.encode())
+                    retry_count += 1
+                    time.sleep(RETRY_INTERVAL)
+
+            if ack_received:
+                print("ACK received during retries. No further retries needed.")
+            elif retry_count >= MAX_RETRIES:
+                print("Max retries reached. No ACK received for the message.")
+
+            return jsonify({'status': 'success'})
+        else:
+            return jsonify({'status': 'error', 'message': 'No associated callsign found for the sender\'s phone number'})
 
 def establish_aprs_connection():
     global aprs_socket, socket_ready
@@ -182,7 +229,7 @@ def establish_aprs_connection():
             print("Connected to APRS server with callsign: {}".format(APRS_CALLSIGN))
 
             # Send login information with APRS callsign and passcode
-            login_str = 'user {} pass {} vers SMS-Gateway 0.1b\r\n'.format(APRS_CALLSIGN, APRS_PASSCODE)
+            login_str = 'user {} pass {} vers SMS-Gateway 1.0 Beta\r\n'.format(APRS_CALLSIGN, APRS_PASSCODE)
             aprs_socket.sendall(login_str.encode())
             print("Sent login information.")
 
@@ -203,7 +250,7 @@ def establish_aprs_connection():
             time.sleep(1)  # Wait for a while before attempting to reconnect
 
 def receive_aprs_messages():
-    global socket_ready  # Declare that you're using the global variable
+    global socket_ready, last_message_number   # Declare that you're using the global variable
 
     while True:
         try:
@@ -279,6 +326,13 @@ def receive_aprs_messages():
                                     
                                 if match:
                                     recipient = match.group(1)
+                                    
+                                    # Update the dictionary with the last message number for the callsign
+                                    last_message_number[recipient] = from_callsign
+                                    print ("To #", recipient)
+                                    print ("From", from_callsign)
+                                    print ("Dictionary", last_message_number)
+                                    
                                     aprs_message = match.group(2)
 
                                     # Check if the recipient is a 10-digit number or an alias
@@ -377,7 +431,7 @@ def send_beacon():
         try:
             if socket_ready:               
                 # Send a keepalive packet to the APRS server
-                keepalive_packet = 'SMS>APRS:!4024.51N/14943.02W$Bidirectional SMS Gateway (BETA)(US ONLY) - CALLSIGN\r\n'
+                keepalive_packet = 'SMS>APOSMS:!4024.51N/14943.02W$Bidirectional SMS Gateway (BETA)(US ONLY) - APOSMS\r\n'
                 aprs_socket.sendall(keepalive_packet.encode())
                 print("Sent Beacon Packet.")
         except Exception as e:
