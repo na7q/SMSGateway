@@ -327,6 +327,11 @@ def receive_aprs_messages():
                                 if match:
                                     recipient = match.group(1)
                                     
+                                    # Use the reverse alias mapping to check if the sender's phone number has an associated alias
+                                    alias = alias_map.get(recipient.lower())
+                                    if alias:
+                                        recipient = alias
+                                        
                                     # Update the dictionary with the last message number for the callsign
                                     last_message_number[recipient] = from_callsign
                                     print ("To #", recipient)
