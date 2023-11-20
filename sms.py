@@ -150,7 +150,7 @@ def send_ack_message(sender, message_id):
     ack_message = 'ack{}'.format(message_id)
     sender_length = len(sender)
     spaces_after_sender = ' ' * max(0, 9 - sender_length)
-    ack_packet_format = '{}>APOSMS::{}{}:{}\r\n'.format(APRS_CALLSIGN, sender, spaces_after_sender, ack_message)
+    ack_packet_format = '{}>{}::{}{}:{}\r\n'.format(APRS_CALLSIGN, tocall, sender, spaces_after_sender, ack_message)
     ack_packet = ack_packet_format.encode()
     aprs_socket.sendall(ack_packet)
     print("Sent ACK to {}: {}".format(sender, ack_message))
@@ -160,7 +160,7 @@ def send_rej_message(sender, message_id):
     rej_message = 'rej{}'.format(message_id)
     sender_length = len(sender)
     spaces_after_sender = ' ' * max(0, 9 - sender_length)
-    rej_packet_format = '{}>APOSMS::{}{}:{}\r\n'.format(APRS_CALLSIGN, sender, spaces_after_sender, rej_message)
+    rej_packet_format = '{}>{}::{}{}:{}\r\n'.format(APRS_CALLSIGN, tocall, sender, spaces_after_sender, rej_message)
     rej_packet = rej_packet_format.encode()
     aprs_socket.sendall(rej_packet)
     print("Sent REJ to {}: {}".format(sender, rej_message))
@@ -274,7 +274,7 @@ def send_sms_uk(twilio_phone_number_uk, to_phone_number, from_callsign, body_mes
 def format_aprs_packet(callsign, message):
     sender_length = len(callsign)
     spaces_after_sender = ' ' * max(0, 9 - sender_length) #1,9 - Changed 9-16
-    aprs_packet_format = '{}>APOSMS::{}{}:{}\r\n'.format(APRS_CALLSIGN, callsign, spaces_after_sender, message)
+    aprs_packet_format = '{}>{}::{}{}:{}\r\n'.format(APRS_CALLSIGN, tocall, callsign, spaces_after_sender, message)
     return aprs_packet_format
 
 def load_alias_map_from_file(filename):
