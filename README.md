@@ -16,10 +16,7 @@ nohup python3 /root/app/sms.py > /dev/null 2>&1 &<br><br>
 
 Not supported: <br>
 Checking Missed SMS Messages via APRS<br>
-User level alias mapping.
 <br>
 TO DO:<br>
 Store messages not acked by APRS user.<br>
 Check missed messages for APRS user.<br>
-Add ack resend for duplicate messages<br>
-
